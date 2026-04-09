@@ -104,47 +104,57 @@ function nowString() {
 ====================== */
 async function loadScores() {
   const res = await fetch(
-    `https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard/players?event=${EVENT_ID}`
+    "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=golf&league=pga"
   );
   const data = await res.json();
 
+  const event =
+    data?.sports?.[0]?.leagues?.[0]?.events?.[0];
+
+  if (!event || !event.competitors) return;
+
   const scoreMap = {};
 
-  data.leaderboard.forEach(p => {
-    const key = p.firstName[0] + ". " + p.lastName;
-    scoreMap[key] = {
-      score: normalizeScore(p.toPar),
-      madeCut: !p.status?.type?.state?.toUpperCase().includes("CUT")
-    };
+  event.competitors.forEach(c => {
+    const athlete =
+      c.athlete ??
+      (Array.isArray(c.athletes) ? c.athletes[0] : null);
+
+    if (!athlete || !athlete.displayName) return;
+
+    const parts = athlete.displayName.split(" ");
+    const key = parts[0][0] + ". " + parts.slice(1).join(" ");
+
+    const toPar = c.score?.toPar ?? c.score?.displayValue ?? "0";
+
+    scoreMap[key] =
+      toPar === "E" ? 0 : Number(String(toPar).replace("+",""));
   });
 
   const results = masters2Picks.map(entry => {
     let total = 0;
-    entry.picks.forEach(pick => {
-      if (!scoreMap[pick]) return;
-      total += scoreMap[pick].score; // missed cut auto‑frozen
+    entry.picks.forEach(p => {
+      if (scoreMap[p] !== undefined) total += scoreMap[p];
     });
     return { name: entry.name, total };
   });
 
-  results.sort((a, b) => a.total - b.total);
+  results.sort((a,b) => a.total - b.total);
 
   const tbody = document.getElementById("scores");
   tbody.innerHTML = "";
 
-  results.forEach((r, i) => {
-    const tr = document.createElement("tr");
-    if (i < 10) tr.className = "top10";
-    tr.innerHTML = `
-      <td>${i + 1}</td>
-      <td>${r.name}</td>
-      <td>${r.total}</td>
-    `;
-    tbody.appendChild(tr);
+  results.forEach((r,i) => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${i+1}</td>
+        <td>${r.name}</td>
+        <td>${r.total}</td>
+      </tr>`;
   });
 
   document.getElementById("updated").textContent =
-    "Last updated: " + nowString();
+    "Last updated: " + new Date().toLocaleString();
 }
 
 /* ======================
