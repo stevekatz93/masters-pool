@@ -24,7 +24,7 @@
 <body>
 
 <h2>Masters Pool – Masters 2</h2>
-<div id="meta"><span class="pill" id="roundPill">Live</span><span id="updated">Loading…</span></div>
+<div id="meta"><span class="pill" id="roundPill">Round 1 Live</span><span id="updated">Loading…</span></div>
 <div id="status"></div>
 
 <table>
@@ -56,17 +56,17 @@ function normalizeScore(val) {
 }
 
 function canonLastName(s) {
-  // Remove accents and non-letters, lowercase. Use simple combining-diacritic range.
   let x = String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   x = x.replace(/[^A-Za-z]/g, '').toLowerCase();
-  // Heuristic for common "Mcllroy" typo in pools -> mcilroy
+  // Pool uses "Mcllroy" everywhere; map to McIlroy by normalizing the common double-l typo.
+  x = x.replace(/^mcllroy$/, 'mcilroy');
   x = x.replace(/^mcll/, 'mcil');
   return x;
 }
 
-function canonicalKeyFromName(keyStr) {
-  if (!keyStr) return null;
-  const s = String(keyStr).trim();
+function canonicalKeyFromPick(pick) {
+  if (!pick) return null;
+  const s = String(pick).trim();
   const m = s.match(/^\s*([A-Za-z])\s*\.?\s*(.*)$/);
   if (!m) return null;
   const initial = m[1].toLowerCase();
@@ -75,29 +75,76 @@ function canonicalKeyFromName(keyStr) {
   return initial + '|' + last;
 }
 
-function canonicalKeyFromPlayer(p) {
-  let first = p && p.firstName;
-  let last = p && p.lastName;
-  if ((!first || !last) && p && p.displayName) {
-    const parts = String(p.displayName).trim().split(/\s+/);
-    if (parts.length >= 2) {
-      first = parts[0];
-      last = parts.slice(1).join(' ');
-    }
-  }
-  if (!first || !last) return null;
-  const initial = String(first).trim().charAt(0).toLowerCase();
-  const ln = canonLastName(last);
-  if (!ln) return null;
-  return initial + '|' + ln;
+function extractDisplayName(obj) {
+  if (!obj) return null;
+  // Common shapes across ESPN endpoints
+  if (obj.firstName && obj.lastName) return String(obj.firstName).trim() + ' ' + String(obj.lastName).trim();
+  if (obj.displayName) return String(obj.displayName).trim();
+  if (obj.athlete && obj.athlete.displayName) return String(obj.athlete.displayName).trim();
+  if (Array.isArray(obj.athletes) && obj.athletes[0] && obj.athletes[0].displayName) return String(obj.athletes[0].displayName).trim();
+  if (obj.player && obj.player.displayName) return String(obj.player.displayName).trim();
+  return null;
 }
 
-function getRoundLabel(data) {
-  // Best-effort. Falls back to "Round 1 Live" if unknown.
-  const rn = data?.tournament?.round?.number ?? data?.tournament?.currentRound ?? data?.currentRound;
-  if (typeof rn === 'number') return 'Round ' + rn + ' Live';
-  if (typeof rn === 'string' && rn.trim()) return rn.trim() + ' Live';
-  return 'Round 1 Live';
+function canonicalKeyFromESPN(obj) {
+  const dn = extractDisplayName(obj);
+  if (!dn) return null;
+  const parts = dn.split(/\s+/);
+  if (parts.length < 2) return null;
+  const initial = parts[0].charAt(0).toLowerCase();
+  const last = canonLastName(parts.slice(1).join(' '));
+  if (!last) return null;
+  return initial + '|' + last;
+}
+
+function extractRawToPar(obj) {
+  if (!obj) return null;
+  // Try many score locations
+  if (obj.toPar !== undefined) return obj.toPar;
+  if (obj.displayScore !== undefined) return obj.displayScore;
+  if (obj.score !== undefined && (typeof obj.score === 'string' || typeof obj.score === 'number')) return obj.score;
+  if (obj.score && obj.score.toPar !== undefined) return obj.score.toPar;
+  if (obj.score && obj.score.displayValue !== undefined) return obj.score.displayValue;
+  if (obj.scoring && obj.scoring.toPar !== undefined) return obj.scoring.toPar;
+  return null;
+}
+
+function findCandidateLists(data) {
+  const lists = [];
+  const pushIfArray = (x) => { if (Array.isArray(x) && x.length) lists.push(x); };
+  pushIfArray(data?.leaderboard);
+  pushIfArray(data?.players);
+  pushIfArray(data?.leaderboard?.players);
+  pushIfArray(data?.competitors);
+  pushIfArray(data?.tournament?.competitors);
+  // common nested shape
+  const comp = data?.sports?.[0]?.leagues?.[0]?.events?.[0]?.competitors;
+  pushIfArray(comp);
+  return lists;
+}
+
+function buildScoreMap(data) {
+  const lists = findCandidateLists(data);
+  // Choose the list with the most usable names
+  let best = [];
+  let bestCount = -1;
+  for (const lst of lists) {
+    let cnt = 0;
+    for (const it of lst) {
+      if (canonicalKeyFromESPN(it)) cnt++;
+    }
+    if (cnt > bestCount) { bestCount = cnt; best = lst; }
+  }
+
+  const map = new Map();
+  for (const it of best) {
+    const ck = canonicalKeyFromESPN(it);
+    if (!ck) continue;
+    const raw = extractRawToPar(it);
+    const n = normalizeScore(raw);
+    map.set(ck, { raw, n });
+  }
+  return { map, usable: bestCount, total: best.length };
 }
 
 async function fetchLeaderboard() {
@@ -118,30 +165,15 @@ async function fetchLeaderboard() {
   throw lastErr || new Error('No ESPN data');
 }
 
-function buildScoreMap(data) {
-  const list = Array.isArray(data?.leaderboard) ? data.leaderboard
-            : Array.isArray(data?.players) ? data.players
-            : Array.isArray(data?.leaderboard?.players) ? data.leaderboard.players
-            : [];
-
-  const map = new Map();
-
-  for (const p of list) {
-    const ck = canonicalKeyFromPlayer(p);
-    if (!ck) continue;
-
-    // Live rounds: score often in toPar or displayScore; later may appear in score.
-    const raw = (p?.toPar ?? p?.displayScore ?? p?.score ?? p?.displayScoreText ?? p?.totalScore ?? p?.overallScore);
-    const n = normalizeScore(raw);
-    map.set(ck, { raw, n });
-  }
-
-  return map;
+function roundLabel(data) {
+  const rn = data?.tournament?.round?.number ?? data?.tournament?.currentRound ?? data?.currentRound;
+  if (typeof rn === 'number') return 'Round ' + rn + ' Live';
+  return 'Round 1 Live';
 }
 
 function computeBest5(entry, scoreMap) {
   const golfers = (entry.picks || []).map(name => {
-    const ck = canonicalKeyFromName(name);
+    const ck = canonicalKeyFromPick(name);
     const rec = ck ? scoreMap.get(ck) : null;
     const n = rec ? rec.n : null;
     const matched = (n !== null && n !== undefined && !Number.isNaN(n));
@@ -150,10 +182,8 @@ function computeBest5(entry, scoreMap) {
 
   const matched = golfers.filter(g => g.name && g.matched);
   matched.sort((a,b) => a.n - b.n);
-
-  const counted = matched.slice(0, 5);
+  const counted = matched.slice(0,5);
   const countedSet = new Set(counted.map(g => g.name));
-
   const total = counted.reduce((s,g) => s + g.n, 0);
   return { total, golfers, countedSet };
 }
@@ -178,9 +208,14 @@ async function loadScores() {
 
   try {
     const data = await fetchLeaderboard();
-    document.getElementById('roundPill').textContent = getRoundLabel(data);
+    document.getElementById('roundPill').textContent = roundLabel(data);
 
-    const scoreMap = buildScoreMap(data);
+    const built = buildScoreMap(data);
+    const scoreMap = built.map;
+
+    if (built.usable <= 0) {
+      statusEl.textContent = 'Warning: ESPN response parsed, but no usable golfer names found.\nThis usually means the API shape changed.\n';
+    }
 
     const results = masters2Picks.map(e => {
       const detail = computeBest5(e, scoreMap);
