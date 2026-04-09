@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Masters Pool – Masters 2</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #fafafa;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 5px;
+    }
+    .timestamp {
+      color: #666;
+      font-size: 12px;
+      margin-bottom: 15px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 700px;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    th {
+      background: #eee;
+    }
+    tr.top10 {
+      background: #f4fff4;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Masters Pool – Masters 2</h2>
+<div class="timestamp" id="updated"></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Player</th>
+      <th>Total To‑Par</th>
+    </tr>
+  </thead>
+  <tbody id="scores"></tbody>
+</table>
+
+<script>
+/* ======================
+   CONFIG
+====================== */
+const EVENT_ID = "401811941"; // Masters
+const REFRESH_MS = 300000;   // 5 minutes
+
+/* ======================
+   MASTERS 2 PICKS
+   (paste‑once block generated from Excel)
+====================== */
+const masters2Source = `
+Scott/Phil,J. Rahm,R. McIlroy,X. Schauffele,S. Scheffler,J. Rahm,S. Scheffler,J. Rahm
+Alon Tabak,X. Schauffele,S. Scheffler,S. Scheffler,S. Scheffler,J. Rahm,S. Scheffler,X. Schauffele
+Nascar Style,J. Rahm,J. Rahm,J. Rahm,X. Schauffele,X. Schauffele,R. McIlroy,J. Rahm
+Bash Brothers,S. Scheffler,S. Scheffler,S. Scheffler,J. Rahm,X. Schauffele,S. Scheffler,J. Rahm
+Jeff Taylor,J. Rahm,X. Schauffele,R. McIlroy,J. Rahm,S. Scheffler,X. Schauffele,J. Rahm
+Klamper,X. Schauffele,J. Rahm,S. Scheffler,J. Rahm,X. Schauffele,J. Rahm,S. Scheffler
+Matt Enyedi,S. Scheffler,S. Scheffler,J. Rahm,X. Schauffele,S. Scheffler,X. Schauffele,J. Rahm
+Pete Couhig,B. DeChambeau,X. Schauffele,S. Scheffler,M. Fitzpatrick,B. DeChambeau,J. Rahm,J. Rahm
+Harvey/Shaun,J. Rahm,J. Rahm,J. Rahm,X. Schauffele,S. Scheffler,X. Schauffele,R. McIlroy
+Gary/Shaun,S. Scheffler,S. Scheffler,X. Schauffele,B. DeChambeau,S. Scheffler,J. Rahm,J. Rahm
+`.trim();
+
+/* ======================
+   AUTO‑BUILD PICKS ARRAY
+====================== */
+const masters2Picks = masters2Source.split("\n").map(line => {
+  const parts = line.split(",").map(p => p.trim());
+  return {
+    name: parts[0],
+    picks: parts.slice(1)
+  };
+});
+
+/* ======================
+   HELPERS
+====================== */
+function normalizeScore(val) {
+  if (val === "E" || val === 0 || val === null) return 0;
+  return Number(String(val).replace("+", ""));
+}
+
+function nowString() {
+  return new Date().toLocaleString();
+}
+
+/* ======================
+   LOAD LIVE SCORES
+====================== */
+async function loadScores() {
+  const res = await fetch(
+    `https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard/players?event=${EVENT_ID}`
+  );
+  const data = await res.json();
+
+  const scoreMap = {};
+
+  data.leaderboard.forEach(p => {
+    const key = p.firstName[0] + ". " + p.lastName;
+    scoreMap[key] = {
+      score: normalizeScore(p.toPar),
+      madeCut: !p.status?.type?.state?.toUpperCase().includes("CUT")
+    };
+  });
+
+  const results = masters2Picks.map(entry => {
+    let total = 0;
+    entry.picks.forEach(pick => {
+      if (!scoreMap[pick]) return;
+      total += scoreMap[pick].score; // missed cut auto‑frozen
+    });
+    return { name: entry.name, total };
+  });
+
+  results.sort((a, b) => a.total - b.total);
+
+  const tbody = document.getElementById("scores");
+  tbody.innerHTML = "";
+
+  results.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    if (i < 10) tr.className = "top10";
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${r.name}</td>
+      <td>${r.total}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("updated").textContent =
+    "Last updated: " + nowString();
+}
+
+/* ======================
+   INIT
+====================== */
+loadScores();
+setInterval(loadScores, REFRESH_MS);
+</script>
+
+</body>
+</html>
