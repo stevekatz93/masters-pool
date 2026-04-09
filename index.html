@@ -1,45 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Masters Pool – Masters 2</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #fafafa;
-      padding: 20px;
-    }
-    h2 {
-      margin-bottom: 5px;
-    }
-    .timestamp {
-      color: #666;
-      font-size: 12px;
-      margin-bottom: 15px;
-    }
-    table {
-      border-collapse: collapse;
-      width: 700px;
-      background: white;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px 10px;
-      text-align: left;
-    }
-    th {
-      background: #eee;
-    }
-    tr.top10 {
-      background: #f4fff4;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Masters Pool – Masters 2</title>
+<style>
+  body { font-family: Arial; padding: 20px; background: #fafafa; }
+  table { border-collapse: collapse; width: 720px; background: #fff; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; }
+  th { background: #eee; }
+</style>
 </head>
 <body>
 
 <h2>Masters Pool – Masters 2</h2>
-<div class="timestamp" id="updated"></div>
+<div id="updated" style="font-size:12px;color:#666;margin-bottom:10px;"></div>
 
 <table>
   <thead>
@@ -53,90 +27,48 @@
 </table>
 
 <script>
-/* ======================
-   CONFIG
-====================== */
-const EVENT_ID = "401811941"; // Masters
-const REFRESH_MS = 300000;   // 5 minutes
+const EVENT_ID = "401811941";
+const REFRESH_MS = 300000;
 
-/* ======================
-   MASTERS 2 PICKS
-   (paste‑once block generated from Excel)
-====================== */
 const masters2Source = `
 Scott/Phil,J. Rahm,R. McIlroy,X. Schauffele,S. Scheffler,J. Rahm,S. Scheffler,J. Rahm
 Alon Tabak,X. Schauffele,S. Scheffler,S. Scheffler,S. Scheffler,J. Rahm,S. Scheffler,X. Schauffele
 Nascar Style,J. Rahm,J. Rahm,J. Rahm,X. Schauffele,X. Schauffele,R. McIlroy,J. Rahm
 Bash Brothers,S. Scheffler,S. Scheffler,S. Scheffler,J. Rahm,X. Schauffele,S. Scheffler,J. Rahm
 Jeff Taylor,J. Rahm,X. Schauffele,R. McIlroy,J. Rahm,S. Scheffler,X. Schauffele,J. Rahm
-Klamper,X. Schauffele,J. Rahm,S. Scheffler,J. Rahm,X. Schauffele,J. Rahm,S. Scheffler
-Matt Enyedi,S. Scheffler,S. Scheffler,J. Rahm,X. Schauffele,S. Scheffler,X. Schauffele,J. Rahm
-Pete Couhig,B. DeChambeau,X. Schauffele,S. Scheffler,M. Fitzpatrick,B. DeChambeau,J. Rahm,J. Rahm
-Harvey/Shaun,J. Rahm,J. Rahm,J. Rahm,X. Schauffele,S. Scheffler,X. Schauffele,R. McIlroy
-Gary/Shaun,S. Scheffler,S. Scheffler,X. Schauffele,B. DeChambeau,S. Scheffler,J. Rahm,J. Rahm
 `.trim();
 
-/* ======================
-   AUTO‑BUILD PICKS ARRAY
-====================== */
-const masters2Picks = masters2Source.split("\n").map(line => {
-  const parts = line.split(",").map(p => p.trim());
-  return {
-    name: parts[0],
-    picks: parts.slice(1)
-  };
+const masters2Picks = masters2Source.split("
+").map(r => {
+  const c = r.split(",").map(x => x.trim());
+  return { name: c[0], picks: c.slice(1) };
 });
 
-/* ======================
-   HELPERS
-====================== */
-function normalizeScore(val) {
-  if (val === "E" || val === 0 || val === null) return 0;
-  return Number(String(val).replace("+", ""));
+function normalize(val) {
+  if (!val || val === "E") return 0;
+  return Number(String(val).replace("+",""));
 }
 
-function nowString() {
-  return new Date().toLocaleString();
-}
-
-/* ======================
-   LOAD LIVE SCORES
-====================== */
 async function loadScores() {
   const res = await fetch(
-    "https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=golf&league=pga"
+    `https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${EVENT_ID}`,
+    { cache: "no-store" }
   );
+
   const data = await res.json();
+  const scores = {};
 
-  const event =
-    data?.sports?.[0]?.leagues?.[0]?.events?.[0];
-
-  if (!event || !event.competitors) return;
-
-  const scoreMap = {};
-
-  event.competitors.forEach(c => {
-    const athlete =
-      c.athlete ??
-      (Array.isArray(c.athletes) ? c.athletes[0] : null);
-
-    if (!athlete || !athlete.displayName) return;
-
-    const parts = athlete.displayName.split(" ");
-    const key = parts[0][0] + ". " + parts.slice(1).join(" ");
-
-    const toPar = c.score?.toPar ?? c.score?.displayValue ?? "0";
-
-    scoreMap[key] =
-      toPar === "E" ? 0 : Number(String(toPar).replace("+",""));
+  data.leaderboard.forEach(p => {
+    const key = p.firstName[0] + ". " + p.lastName;
+    scores[key] = normalize(p.score);
   });
 
-  const results = masters2Picks.map(entry => {
+  const results = masters2Picks.map(e => {
     let total = 0;
-    entry.picks.forEach(p => {
-      if (scoreMap[p] !== undefined) total += scoreMap[p];
+    e.picks.forEach(p => {
+      if (scores[p] !== undefined) total += scores[p];
     });
-    return { name: entry.name, total };
+    return { name: e.name, total };
   });
 
   results.sort((a,b) => a.total - b.total);
@@ -157,9 +89,6 @@ async function loadScores() {
     "Last updated: " + new Date().toLocaleString();
 }
 
-/* ======================
-   INIT
-====================== */
 loadScores();
 setInterval(loadScores, REFRESH_MS);
 </script>
