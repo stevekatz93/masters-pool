@@ -4,288 +4,116 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Masters Pool – Masters 2</title>
+
 <style>
-  body { font-family: Arial, sans-serif; margin: 18px; background: #f7f7f7; color:#111; }
-  h2 { margin: 0 0 8px 0; }
-  #meta { font-size: 12px; color:#555; margin-bottom: 10px; }
-  #error { color:#b00020; white-space: pre-wrap; font-size:12px; margin: 10px 0; }
-  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin: 8px 0 14px 0; }
-  input[type=text] { padding:8px 10px; border:1px solid #ccc; border-radius:6px; min-width:220px; }
-  button { padding:8px 12px; border:0; border-radius:6px; background:#1a6; color:#fff; font-weight:700; cursor:pointer; }
-  button:disabled { opacity:0.6; cursor:not-allowed; }
-  table { border-collapse: collapse; width: 100%; background:#fff; }
-  th, td { border-bottom: 1px solid #eee; padding: 8px 10px; vertical-align: top; }
-  th { background:#0f3b2f; color:#f3d27a; text-align:left; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
-  .right { text-align:right; }
-  .golfers span { display:inline-block; margin: 2px 10px 2px 0; white-space:nowrap; }
-  .counted { font-weight:700; }
-  .dropped { color:#999; text-decoration: line-through; }
-  .pending { color:#666; }
-  .small { font-size:12px; color:#666; }
+body { font-family: Arial, sans-serif; margin: 18px; background:#f7f7f7; color:#111; }
+h2 { margin: 0 0 8px 0; }
+#meta { font-size: 12px; color:#555; margin-bottom: 10px; }
+#error { color:#b00020; white-space: pre-wrap; font-size:12px; margin: 10px 0; }
+.controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin: 8px 0 14px 0; }
+input { padding:8px 10px; border:1px solid #ccc; border-radius:6px; min-width:220px; }
+button { padding:8px 12px; border:0; border-radius:6px; background:#1a6; color:#fff; font-weight:700; cursor:pointer; }
+button:disabled { opacity:0.6; cursor:not-allowed; }
+table { border-collapse: collapse; width:100%; background:#fff; }
+th, td { border-bottom:1px solid #eee; padding:8px 10px; vertical-align:top; }
+th { background:#0f3b2f; color:#f3d27a; font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+.right { text-align:right; }
+.golfers span { display:inline-block; margin:2px 10px 2px 0; white-space:nowrap; }
+.counted { font-weight:700; }
+.dropped { color:#999; text-decoration:line-through; }
+.pending { color:#666; }
+.small { font-size:12px; color:#666; }
 </style>
 </head>
+
 <body>
 
 <h2>Masters Pool – Masters 2</h2>
 <div id="meta">Status: <span id="status">Loading…</span> · Last updated: <span id="updated">—</span></div>
+
 <div class="controls">
-  <input id="q" type="text" placeholder="Search team name" />
+  <input id="q" placeholder="Search team name" />
   <button id="refresh">Refresh now</button>
   <span class="small" id="count"></span>
 </div>
+
 <div id="error"></div>
 
 <table>
-  <thead>
-    <tr>
-      <th class="right">Rank</th>
-      <th>Entry</th>
-      <th class="right">Total (Best 5)</th>
-      <th>Golfers (counted 5 bold, dropped 2 gray)</th>
-    </tr>
-  </thead>
-  <tbody id="rows"></tbody>
+<thead>
+<tr>
+  <th class="right">Rank</th>
+  <th>Entry</th>
+  <th class="right">Total (Best 5)</th>
+  <th>Golfers</th>
+</tr>
+</thead>
+<tbody id="rows"></tbody>
 </table>
 
 <script>
-// =================== CONFIG ===================
-let EVENT_ID = "401811941";               // default from your PowerQuery_M tab
-const REFRESH_MS = 300000;                // 5 minutes
+/* ================= CONFIG ================= */
+const REFRESH_MS = 300000;
 
-// Embedded picks extracted from your uploaded Excel (Masters 2 sheet)
-const masters2Picks = [{"name": "Scott/Phil", "picks": ["J. Rahm", "C. Gotterup", "A. Bhatia", "C. Young", "J. Spieth", "P. Cantlay", "C. Smith"], "alternate": "S. Scheffler"}, {"name": "Alon Tabak", "picks": ["R. Mcllroy", "J. Rahm", "B. DeChambeau", "L. Aberg", "J. Rose", "S. Kim", "D. Johnson"], "alternate": "S. Scheffler"}, {"name": "Nascar Style", "picks": ["X. Schauffele", "L. Aberg", "C. Young", "A. Bhatia", "T. Fleetwood", "M. Lee", "R. MacIntyre"], "alternate": "C. Gotterup"}, {"name": "Bash Brothers", "picks": ["X. Schauffele", "L. Aberg", "C. Young", "A. Bhatia", "H. English", "C. Conners", "P. Reed"], "alternate": "H. Matsuyama"}, {"name": "Jeff Taylor", "picks": ["X. Schauffele", "B. DeChambeau", "C. Young", "M. Fitzpatrick", "T. Fleetwood", "A. Bhatia", "P. Reed"], "alternate": "S. Scheffler"}, {"name": "Klamper", "picks": ["X. Schauffele", "J. Rahm", "L. Aberg", "C. Gotterup", "H. Matsuyama", "S. Straka", "J. Knapp"], "alternate": "C. Young"}, {"name": "Matt Enyedi", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "M. Fitzpatrick", "C. Young", "P. Reed", "A. Bhatia"], "alternate": "J. Spieth"}, {"name": "Pete Couhig", "picks": ["X. Schauffele", "J. Rahm", "M. Fitzpatrick", "H. Matsuyama", "J. Spieth", "L. Aberg", "N. Hojgaard"], "alternate": "R. Henley"}, {"name": "Harvey/Shaun", "picks": ["J. Rahm", "B. DeChambeau", "C. Young", "B. Koepka", "A. Bhatia", "C. Smith", "R. MacIntyre"], "alternate": "T. Fleetwood"}, {"name": "Gary/Shaun", "picks": ["R. Mcllroy", "J. Rahm", "L. Aberg", "A. Bhatia", "C. Young", "P. Reed", "R. MacIntyre"], "alternate": "H. Matsuyama"}, {"name": "Badgley-Nelson", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "T. Fleetwood", "X. Schauffele", "C. Morikawa", "M. Lee"], "alternate": "C. Gotterup"}, {"name": "Norris/Bauer", "picks": ["S. Scheffler", "J. Rahm", "B. DeChambeau", "B. Koepka", "H. Matsuyama", "J. Rose", "P. Reed"], "alternate": "V. Hovland"}, {"name": "Brett/Scott", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "T. Fleetwood", "J. Rose", "S. Burns", "P. Reed"], "alternate": "A. Bhatia"}, {"name": "CartBarn", "picks": ["S. Scheffler", "R. Mcllroy", "J. Rahm", "L. Aberg", "V. Hovland", "T. Fleetwood", "J. Rose"], "alternate": "M. Fitzpatrick"}, {"name": "More Birds", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "C. Young", "A. Bhatia", "J. Spieth", "H. Matsuyama"], "alternate": "P. Reed"}, {"name": "Bill Seidel1", "picks": ["J. Rahm", "B. DeChambeau", "X. Schauffele", "M. Fitzpatrick", "C. Young", "R. Henley", "P. Reed"], "alternate": "J. Rose"}, {"name": "Bill Seidel2", "picks": ["X. Schauffele", "L. Aberg", "J. Spieth", "T. Fleetwood", "P. Reed", "R. Henley", "M. Lee"], "alternate": "S. Scheffler"}, {"name": "Andrew Matney", "picks": ["R. Mcllroy", "J. Rahm", "X. Schauffele", "L. Aberg", "M. Fitzpatrick", "B. DeChambeau", "T. Fleetwood"], "alternate": "M. Lee"}, {"name": "Murphy Boys", "picks": ["J. Rahm", "B. DeChambeau", "X. Schauffele", "M. Fitzpatrick", "J. Rose", "S. Kim", "S. Im"], "alternate": "C. Smith"}, {"name": "Santee1", "picks": ["X. Schauffele", "B. DeChambeau", "L. Aberg", "M. Fitzpatrick", "P. Reed", "R. Henley", "R. MacIntyre"], "alternate": "S. Straka"}, {"name": "Santee2", "picks": ["X. Schauffele", "B. DeChambeau", "J. Rahm", "M. Fitzpatrick", "J. Day", "T. Fleetwood", "L. Aberg"], "alternate": "N. Hojgaard"}, {"name": "Arnold P", "picks": ["X. Schauffele", "B. DeChambeau", "C. Morikawa", "M. Fitzpatrick", "L. Aberg", "J. Rose", "R. MacIntyre"], "alternate": "H. Matsuyama"}, {"name": "Fists of Furyk", "picks": ["B. DeChambeau", "J. Rose", "A. Bhatia", "S. Lowry", "T. Fleetwood", "R. MacIntyre", "P. Reed"], "alternate": "J. Spieth"}, {"name": "Disko", "picks": ["X. Schauffele", "B. DeChambeau", "C. Young", "S. Straka", "C. Gotterup", "J. Rose", "J. Knapp"], "alternate": "L. Aberg"}, {"name": "B. Diskin", "picks": ["S. Scheffler", "X. Schauffele", "L. Aberg", "H. Matsuyama", "T. Fleetwood", "C. Conners", "P. Cantlay"], "alternate": "F. Couples"}, {"name": "B Boynton", "picks": ["M. Fitzpatrick", "C. Young", "B. Koepka", "R. Henley", "M. McNealy", "A. Bhatia", "P. Reed"], "alternate": "J. Day"}, {"name": "Golf of Mexico", "picks": ["B. DeChambeau", "C. Young", "V. Hovland", "H. Matsuyama", "J. Rose", "M. Lee", "J. Day"], "alternate": "M. Penge"}, {"name": "Fairway to Heaven", "picks": ["J. Rahm", "C. Gotterup", "L. Aberg", "M. Fitzpatrick", "H. Matsuyama", "J. Spieth", "P. Reed"], "alternate": "D. Johnson"}, {"name": "Martorano", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "J. Spieth", "H. Matsuyama", "J. Rose", "P. Reed"], "alternate": "C. Gotterup"}, {"name": "Kevin B", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "P. Reed", "J. Rose", "H. Matsuyama", "C. Conners"], "alternate": "B. DeChambeau"}, {"name": "LaLaPachlousa", "picks": ["X. Schauffele", "L. Aberg", "M. Fitzpatrick", "C. Young", "T. Fleetwood", "J. Rose", "P. Reed"], "alternate": "A. Bhatia"}, {"name": "Cochie", "picks": ["X. Schauffele", "L. Aberg", "M. Fitzpatrick", "A. Bhatia", "V. Hovland", "C. Conners", "S. Kim"], "alternate": "P. Reed"}, {"name": "SlamKP", "picks": ["R. Mcllroy", "X. Schauffele", "C. Young", "J. Spieth", "J. Rose", "P. Reed", "M. McCarty"], "alternate": "B. Campbell"}, {"name": "Frank DZ", "picks": ["R. Mcllroy", "J. Rahm", "L. Aberg", "C. Young", "T. Fleetwood", "S. Kim", "P. Reed"], "alternate": "C. Gotterup"}, {"name": "FSU DOG", "picks": ["J. Rahm", "J. Rose", "C. Young", "V. Hovland", "A. Scott", "N. Hojgaard", "K. Kitayama"], "alternate": "H. English"}, {"name": "JT 1", "picks": ["J. Rahm", "X. Schauffele", "C. Morikawa", "B. DeChambeau", "M. Fitzpatrick", "J. Rose", "L. Aberg"], "alternate": "G. Woodland"}, {"name": "JT 2", "picks": ["C. Young", "H. Matsuyama", "J. Spaun", "T. Fleetwood", "P. Reed", "R. MacIntyre", "G. Woodland"], "alternate": "R. Mcllroy"}, {"name": "JT 3", "picks": ["B. DeChambeau", "C. Gotterup", "A. Bhatia", "C. Young", "J. Spaun", "G. Woodland", "J. Bridgeman"], "alternate": "J. Rahm"}, {"name": "CC 1", "picks": ["J. Rahm", "L. Aberg", "A. Bhatia", "C. Conners", "C. Young", "M. McNealy", "G. Woodland"], "alternate": "R. Mcllroy"}, {"name": "CC 2", "picks": ["J. Rahm", "J. Rose", "C. Young", "L. Aberg", "P. Reed", "C. Conners", "M. McNealy"], "alternate": "R. Mcllroy"}, {"name": "Lee U", "picks": ["L. Aberg", "J. Rose", "J. Day", "A. Scott", "M. Lee", "N. Hojgaard", "J. Bridgeman"], "alternate": "H. Matsuyama"}, {"name": "Rodney D", "picks": ["B. DeChambeau", "C. Young", "C. Gotterup", "J. Spaun", "S. Straka", "M. Lee", "S. Kim"], "alternate": "T. Fleetwood"}, {"name": "Elliot M", "picks": ["C. Morikawa", "C. Young", "L. Aberg", "P. Reed", "R. Henley", "M. Lee", "N. Hojgaard"], "alternate": "J. Bridgeman"}, {"name": "Jacob R", "picks": ["S. Scheffler", "C. Gotterup", "L. Aberg", "J. Rose", "C. Young", "P. Reed", "R. MacIntyre"], "alternate": "R. Mcllroy"}, {"name": "Dingus Mingus", "picks": ["S. Scheffler", "J. Rahm", "L. Aberg", "X. Schauffele", "C. Young", "N. Hojgaard", "J. Bridgeman"], "alternate": "A. Bhatia"}, {"name": "BPC", "picks": ["S. Scheffler", "L. Aberg", "M. Fitzpatrick", "C. Morikawa", "H. Matsuyama", "T. Fleetwood", "A. Bhatia"], "alternate": "X. Schauffele"}, {"name": "Playing Thru", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "B. DeChambeau", "L. Aberg", "C. Young", "J. Bridgeman"], "alternate": "J. Rose"}, {"name": "Mike Baker", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "J. Rose", "H. Matsuyama", "P. Reed", "J. Thomas"], "alternate": "D. Johnson"}, {"name": "Barr/Haughs", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "M. Fitzpatrick", "S. Im", "P. Reed", "J. Bridgeman"], "alternate": "C. Conners"}, {"name": "Griffin of Wedgewood", "picks": ["X. Schauffele", "M. Fitzpatrick", "J. Rose", "H. Matsuyama", "J. Spieth", "S. Lowry", "S. Kim"], "alternate": "A. Scott"}, {"name": "Chris Middleton", "picks": ["J. Rahm", "B. DeChambeau", "M. Fitzpatrick", "J. Rose", "C. Young", "P. Reed", "T. Fleetwood"], "alternate": "R. MacIntyre"}, {"name": "Barbosa", "picks": ["J. Rahm", "B. DeChambeau", "C. Young", "T. Fleetwood", "H. Matsuyama", "M. Lee", "R. Henley"], "alternate": "A. Bhatia"}, {"name": "T&MD1", "picks": ["S. Scheffler", "A. Bhatia", "C. Young", "J. Rose", "M. Fitzpatrick", "H. Matsuyama", "P. Reed"], "alternate": "C. Conners"}, {"name": "West/Little", "picks": ["S. Scheffler", "R. Mcllroy", "X. Schauffele", "L. Aberg", "J. Rahm", "C. Conners", "P. Reed"], "alternate": "C. Young"}, {"name": "Worthogs", "picks": ["S. Scheffler", "R. Mcllroy", "J. Rahm", "X. Schauffele", "L. Aberg", "S. Lowry", "J. Day"], "alternate": "B. DeChambeau"}, {"name": "Team MacDad", "picks": ["X. Schauffele", "C. Morikawa", "C. Young", "M. Fitzpatrick", "H. Matsuyama", "P. Reed", "S. Kim"], "alternate": "A. Scott"}, {"name": "Woody", "picks": ["S. Scheffler", "B. DeChambeau", "C. Young", "L. Aberg", "J. Spieth", "H. Matsuyama", "P. Reed"], "alternate": "J. Rose"}, {"name": "SandBaggers", "picks": ["L. Aberg", "C. Young", "V. Hovland", "J. Spieth", "H. Matsuyama", "M. Lee", "B. Koepka"], "alternate": "X. Schauffele"}, {"name": "Walsh/Levi", "picks": ["S. Scheffler", "J. Rahm", "B. DeChambeau", "C. Young", "L. Aberg", "H. Matsuyama", "M. Lee"], "alternate": "P. Reed"}, {"name": "Sam L.", "picks": ["B. DeChambeau", "M. Fitzpatrick", "T. Fleetwood", "J. Spieth", "J. Thomas", "A. Bhatia", "M. Greyserman"], "alternate": "F. Couples"}, {"name": "Gregg I", "picks": ["X. Schauffele", "J. Rahm", "V. Hovland", "C. Gotterup", "H. Matsuyama", "P. Reed", "T. Hatton"], "alternate": "D. Johnson"}, {"name": "Ross F", "picks": ["R. Mcllroy", "C. Morikawa", "C. Young", "L. Aberg", "R. Henley", "J. Rose", "R. MacIntyre"], "alternate": "S. Garcia"}, {"name": "The Daves", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "J. Rose", "P. Reed", "H. English", "N. Hojgaard"], "alternate": "A. Bhatia"}, {"name": "Mitch/Gino", "picks": ["X. Schauffele", "B. DeChambeau", "C. Gotterup", "J. Rose", "H. Matsuyama", "C. Young", "A. Bhatia"], "alternate": "S. Burns"}, {"name": "Waeschle", "picks": ["S. Scheffler", "J. Rahm", "J. Rose", "H. Matsuyama", "P. Reed", "C. Conners", "C. Smith"], "alternate": "X. Schauffele"}, {"name": "Dan Buzgon", "picks": ["S. Scheffler", "L. Aberg", "C. Young", "J. Spieth", "J. Rose", "P. Reed", "S. Kim"], "alternate": "S. Lowry"}, {"name": "Big Run Stalwarts", "picks": ["X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "L. Aberg", "T. Fleetwood", "R. Henley", "R. MacIntyre"], "alternate": "M. Kim"}, {"name": "M & M", "picks": ["B. DeChambeau", "M. Fitzpatrick", "C. Gotterup", "C. Young", "A. Bhatia", "P. Reed", "A. Scott"], "alternate": "M. Lee"}, {"name": "B Petty", "picks": ["S. Scheffler", "X. Schauffele", "L. Aberg", "M. Fitzpatrick", "T. Fleetwood", "H. Matsuyama", "M. Lee"], "alternate": "B. Koepka"}, {"name": "E Petty", "picks": ["S. Scheffler", "X. Schauffele", "J. Rahm", "B. Koepka", "H. Matsuyama", "M. Lee", "R. MacIntyre"], "alternate": "L. Aberg"}, {"name": "R Petty", "picks": ["X. Schauffele", "C. Gotterup", "J. Spieth", "H. Matsuyama", "J. Rose", "A. Bhatia", "R. MacIntyre"], "alternate": "L. Aberg"}, {"name": "Team Sink", "picks": ["B. DeChambeau", "L. Aberg", "C. Gotterup", "C. Young", "A. Scott", "G. Woodland", "N. Hojgaard"], "alternate": "V. Hovland"}, {"name": "Team Tiger", "picks": ["X. Schauffele", "L. Aberg", "T. Fleetwood", "C. Young", "H. Matsuyama", "M. Homa", "M. Lee"], "alternate": "J. Rahm"}, {"name": "Jeff Britton", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "C. Young", "J. Rose", "J. Spieth", "J. Day"], "alternate": "A. Scott"}, {"name": "Pacheco", "picks": ["B. DeChambeau", "L. Aberg", "B. Koepka", "G. Woodland", "J. Knapp", "M. McNealy", "C. Gotterup"], "alternate": "M. McCarty"}, {"name": "Hickey/Northcutt", "picks": ["S. Scheffler", "R. Mcllroy", "X. Schauffele", "J. Rahm", "J. Thomas", "S. Im", "C. Conners"], "alternate": "H. Matsuyama"}, {"name": "Birdman & JC", "picks": ["S. Scheffler", "X. Schauffele", "B. DeChambeau", "C. Young", "L. Aberg", "J. Rose", "P. Reed"], "alternate": "M. Lee"}, {"name": "Suck The Bag", "picks": ["J. Rahm", "X. Schauffele", "C. Gotterup", "S. Lowry", "T. Fleetwood", "C. Conners", "R. MacIntyre"], "alternate": "J. Thomas"}, {"name": "Bobcats", "picks": ["X. Schauffele", "B. DeChambeau", "J. Spieth", "L. Aberg", "T. Fleetwood", "M. Lee", "R. MacIntyre"], "alternate": "R. Mcllroy"}, {"name": "LaMaestra", "picks": ["J. Rahm", "L. Aberg", "J. Spaun", "J. Spieth", "J. Thomas", "A. Scott", "S. Kim"], "alternate": "R. Henley"}, {"name": "BigJimT", "picks": ["J. Rahm", "X. Schauffele", "M. Fitzpatrick", "C. Young", "P. Reed", "A. Bhatia", "A. Scott"], "alternate": "S. Scheffler"}, {"name": "Bombay Bill", "picks": ["J. Rahm", "X. Schauffele", "M. Fitzpatrick", "C. Young", "L. Aberg", "J. Rose", "P. Reed"], "alternate": "J. Bridgeman"}, {"name": "Jonas Mikals", "picks": ["S. Scheffler", "L. Aberg", "J. Spieth", "H. Matsuyama", "S. Lowry", "C. Young", "P. Cantlay"], "alternate": "C. Conners"}, {"name": "YellowBrick 1", "picks": ["R. Mcllroy", "J. Rahm", "M. Fitzpatrick", "C. Young", "J. Rose", "H. Matsuyama", "P. Reed"], "alternate": "S. Scheffler"}, {"name": "YellowBrick 2", "picks": ["J. Rahm", "C. Young", "L. Aberg", "H. Matsuyama", "C. Conners", "P. Reed", "J. Bridgeman"], "alternate": "S. Scheffler"}, {"name": "YellowBrick 3", "picks": ["S. Scheffler", "X. Schauffele", "L. Aberg", "T. Fleetwood", "A. Bhatia", "P. Reed", "H. Matsuyama"], "alternate": "J. Rahm"}, {"name": "1 Putt Gordo", "picks": ["J. Rahm", "B. DeChambeau", "X. Schauffele", "L. Aberg", "T. Fleetwood", "J. Rose", "S. Lowry"], "alternate": "M. Fitzpatrick"}, {"name": "OverTip", "picks": ["C. Gotterup", "X. Schauffele", "S. Lowry", "J. Day", "M. Lee", "G. Woodland", "A. Bhatia"], "alternate": "L. Aberg"}, {"name": "Warchild Snipe", "picks": ["J. Rahm", "J. Rose", "J. Day", "A. Bhatia", "C. Young", "R. MacIntyre", "P. Reed"], "alternate": "D. Johnson"}, {"name": "CHBISQUITS", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "J. Spieth", "H. Matsuyama", "A. Scott", "C. Conners"], "alternate": "P. Reed"}, {"name": "Kid Podi", "picks": ["S. Scheffler", "L. Aberg", "J. Rose", "A. Bhatia", "R. MacIntyre", "H. Matsuyama", "P. Reed"], "alternate": "J. Rahm"}, {"name": "BTC", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "L. Aberg", "M. Fitzpatrick", "H. Matsuyama", "J. Bridgeman"], "alternate": "J. Rose"}, {"name": "Bogie Smalls & 2 Putts", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "C. Young", "J. Thomas", "T. Fleetwood", "J. Bridgeman"], "alternate": "S. Scheffler"}, {"name": "Mark Me Down for a 69", "picks": ["S. Scheffler", "X. Schauffele", "C. Gotterup", "M. Fitzpatrick", "L. Aberg", "M. Lee", "C. Young"], "alternate": "T. Fleetwood"}, {"name": "Biddinger", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "C. Young", "L. Aberg", "P. Reed"], "alternate": "H. Matsuyama"}, {"name": "Justin M", "picks": ["X. Schauffele", "T. Fleetwood", "B. Harman", "S. Burns", "S. Kim", "P. Cantlay", "H. English"], "alternate": "C. Smith"}, {"name": "Dylan M", "picks": ["C. Young", "H. Matsuyama", "J. Spaun", "J. Day", "D. Berger", "M. Lee", "A. Scott"], "alternate": "G. Woodland"}, {"name": "Beachtime", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "L. Aberg", "J. Rose", "P. Reed", "P. Cantlay"], "alternate": "S. Garcia"}, {"name": "Red Beach", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "B. DeChambeau", "J. Rose", "J. Spieth", "P. Reed"], "alternate": "S. Garcia"}, {"name": "LVR", "picks": ["S. Scheffler", "X. Schauffele", "L. Aberg", "J. Spieth", "H. Matsuyama", "R. MacIntyre", "R. Henley"], "alternate": "C. Young"}, {"name": "LVR 2", "picks": ["M. Fitzpatrick", "J. Rose", "S. Lowry", "P. Reed", "A. Bhatia", "H. Matsuyama", "J. Bridgeman"], "alternate": "V. Hovland"}, {"name": "68 Dodgers", "picks": ["R. Mcllroy", "B. DeChambeau", "L. Aberg", "J. Rose", "H. Matsuyama", "P. Reed", "R. MacIntyre"], "alternate": "J. Bridgeman"}, {"name": "Zrosenow", "picks": ["J. Rahm", "R. Mcllroy", "M. Fitzpatrick", "B. DeChambeau", "J. Spieth", "C. Young", "X. Schauffele"], "alternate": "A. Bhatia"}, {"name": "Green Machine", "picks": ["X. Schauffele", "M. Fitzpatrick", "A. Bhatia", "T. Fleetwood", "P. Reed", "N. Hojgaard", "J. Bridgeman"], "alternate": "L. Aberg"}, {"name": "No BS", "picks": ["J. Rahm", "L. Aberg", "C. Young", "M. Fitzpatrick", "H. Matsuyama", "P. Reed", "M. Lee"], "alternate": "C. Jarvis"}, {"name": "Moo Bear", "picks": ["S. Scheffler", "M. Fitzpatrick", "C. Morikawa", "L. Aberg", "T. Fleetwood", "J. Rose", "M. Lee"], "alternate": "J. Spieth"}, {"name": "Gooseman", "picks": ["X. Schauffele", "L. Aberg", "M. Fitzpatrick", "J. Rose", "B. DeChambeau", "C. Young", "P. Reed"], "alternate": "C. Conners"}, {"name": "Tom Arnold", "picks": ["J. Rahm", "C. Young", "P. Reed", "R. MacIntyre", "C. Conners", "N. Hojgaard", "M. McNealy"], "alternate": "C. Gotterup"}, {"name": "Brightly/Graumann", "picks": ["J. Rahm", "L. Aberg", "M. Fitzpatrick", "J. Rose", "H. Matsuyama", "A. Bhatia", "P. Reed"], "alternate": "C. Young"}, {"name": "D$", "picks": ["X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "L. Aberg", "J. Bridgeman", "R. Henley", "P. Reed"], "alternate": "J. Rahm"}, {"name": "The Nittany Wits", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "C. Young", "J. Spieth", "C. Conners", "P. Reed"], "alternate": "C. Gotterup"}, {"name": "Dawson's Duffers", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "V. Hovland", "T. Fleetwood", "B. Koepka", "R. MacIntyre"], "alternate": "J. Thomas"}, {"name": "Team Albatross", "picks": ["B. DeChambeau", "C. Morikawa", "H. Matsuyama", "C. Young", "T. Fleetwood", "S. Burns", "W. Clark"], "alternate": "J. Spieth"}, {"name": "DocMan", "picks": ["X. Schauffele", "B. DeChambeau", "J. Rahm", "A. Bhatia", "J. Rose", "C. Young", "R. MacIntyre"], "alternate": "P. Reed"}, {"name": "John Daly's Heaters", "picks": ["B. DeChambeau", "L. Aberg", "C. Gotterup", "J. Rose", "J. Thomas", "T. Fleetwood", "P. Reed"], "alternate": "A. Scott"}, {"name": "DPC6280", "picks": ["S. Scheffler", "J. Rahm", "R. Mcllroy", "B. DeChambeau", "M. Fitzpatrick", "J. Rose", "J. Spaun"], "alternate": "C. Young"}, {"name": "Jay Weg", "picks": ["S. Scheffler", "R. Mcllroy", "X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "C. Young", "R. MacIntyre"], "alternate": "P. Cantlay"}, {"name": "Owen Weg", "picks": ["S. Scheffler", "R. Mcllroy", "J. Rahm", "L. Aberg", "J. Spieth", "J. Rose", "H. Matsuyama"], "alternate": "P. Cantlay"}, {"name": "Harry R", "picks": ["J. Rahm", "X. Schauffele", "C. Morikawa", "L. Aberg", "J. Rose", "H. Matsuyama", "S. Im"], "alternate": "C. Smith"}, {"name": "Tarheels", "picks": ["X. Schauffele", "J. Rahm", "L. Aberg", "J. Day", "A. Bhatia", "P. Reed", "K. Kitayama"], "alternate": "C. Conners"}, {"name": "Fore For Four!", "picks": ["J. Rahm", "X. Schauffele", "M. Fitzpatrick", "C. Young", "P. Reed", "L. Aberg", "S. Kim"], "alternate": "T. Fleetwood"}, {"name": "Pat D", "picks": ["L. Aberg", "M. Fitzpatrick", "C. Young", "H. Matsuyama", "R. MacIntyre", "P. Reed", "C. Conners"], "alternate": "J. Day"}, {"name": "Bat Wing", "picks": ["B. DeChambeau", "C. Young", "C. Gotterup", "L. Aberg", "J. Rose", "A. Bhatia", "P. Reed"], "alternate": "R. MacIntyre"}, {"name": "I Heart Joel Dahmen", "picks": ["S. Scheffler", "J. Rahm", "C. Gotterup", "L. Aberg", "M. Lee", "C. Conners", "R. MacIntyre"], "alternate": "S. Kim"}, {"name": "Nose Beer Boys", "picks": ["X. Schauffele", "J. Rahm", "B. DeChambeau", "J. Rose", "L. Aberg", "P. Reed", "A. Bhatia"], "alternate": "C. Gotterup"}, {"name": "Yes Schef", "picks": ["J. Rahm", "C. Gotterup", "L. Aberg", "C. Young", "J. Rose", "P. Reed", "C. Conners"], "alternate": "S. Kim"}, {"name": "Andrew V", "picks": ["J. Rahm", "R. Mcllroy", "L. Aberg", "V. Hovland", "P. Reed", "M. Lee", "C. Smith"], "alternate": "A. Bhatia"}, {"name": "Papi", "picks": ["R. Mcllroy", "X. Schauffele", "L. Aberg", "T. Fleetwood", "A. Bhatia", "J. Rose", "R. MacIntyre"], "alternate": "J. Rahm"}, {"name": "Double D's", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "C. Young", "A. Bhatia", "J. Rose", "P. Reed"], "alternate": "J. Bridgeman"}, {"name": "McMackin", "picks": ["J. Rahm", "X. Schauffele", "M. Fitzpatrick", "A. Bhatia", "H. Matsuyama", "C. Smith", "P. Reed"], "alternate": "P. Cantlay"}, {"name": "The Dawgs", "picks": ["X. Schauffele", "B. DeChambeau", "L. Aberg", "T. Fleetwood", "S. Straka", "S. Burns", "J. Thomas"], "alternate": "J. Rose"}, {"name": "Team Deland", "picks": ["S. Scheffler", "L. Aberg", "M. Fitzpatrick", "J. Spieth", "H. Matsuyama", "T. Fleetwood", "G. Woodland"], "alternate": "A. Bhatia"}, {"name": "PRIMETIME 25", "picks": ["J. Rahm", "L. Aberg", "B. DeChambeau", "V. Hovland", "M. Fitzpatrick", "T. Fleetwood", "S. Burns"], "alternate": "C. Conners"}, {"name": "Barry/Bill", "picks": ["X. Schauffele", "B. DeChambeau", "L. Aberg", "C. Young", "P. Reed", "A. Bhatia", "N. Hojgaard"], "alternate": "J. Knapp"}, {"name": "EP 1", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "B. DeChambeau", "T. Fleetwood", "A. Bhatia", "J. Bridgeman"], "alternate": "R. Mcllroy"}, {"name": "Hamburgler & Grimace", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "L. Aberg", "H. Matsuyama", "T. Fleetwood", "R. MacIntyre"], "alternate": "V. Hovland"}, {"name": "SUN DUI RED", "picks": ["S. Scheffler", "R. Mcllroy", "B. DeChambeau", "J. Rose", "A. Bhatia", "T. Fleetwood", "P. Reed"], "alternate": "J. Rahm"}, {"name": "Fabian", "picks": ["L. Aberg", "V. Hovland", "M. Fitzpatrick", "T. Fleetwood", "S. Kim", "P. Reed", "C. Conners"], "alternate": "J. Rose"}, {"name": "Fuzzy Vodka", "picks": ["J. Rahm", "B. DeChambeau", "X. Schauffele", "L. Aberg", "J. Spieth", "J. Rose", "P. Reed"], "alternate": "S. Scheffler"}, {"name": "Fuzzy Vodka 2", "picks": ["S. Scheffler", "R. Mcllroy", "J. Spieth", "T. Fleetwood", "R. MacIntyre", "P. Reed", "S. Kim"], "alternate": "X. Schauffele"}, {"name": "Fuzzy Vodka 3", "picks": ["M. Fitzpatrick", "V. Hovland", "T. Hatton", "A. Bhatia", "S. Lowry", "R. MacIntyre", "A. Scott"], "alternate": "S. Scheffler"}, {"name": "Malave", "picks": ["S. Scheffler", "J. Rahm", "J. Spieth", "A. Bhatia", "L. Aberg", "P. Reed", "M. McCarty"], "alternate": "R. MacIntyre"}, {"name": "Brooky", "picks": ["X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "T. Fleetwood", "L. Aberg", "P. Reed", "J. Bridgeman"], "alternate": "J. Rose"}, {"name": "LIVe Free or Drive Far", "picks": ["X. Schauffele", "L. Aberg", "J. Rahm", "C. Morikawa", "M. Fitzpatrick", "C. Young", "P. Reed"], "alternate": "T. Fleetwood"}, {"name": "J & J,  LLC", "picks": ["J. Rahm", "B. DeChambeau", "C. Gotterup", "L. Aberg", "M. Fitzpatrick", "C. Young", "A. Bhatia"], "alternate": "P. Reed"}, {"name": "Big Babies", "picks": ["X. Schauffele", "B. DeChambeau", "J. Rahm", "L. Aberg", "C. Young", "J. Rose", "P. Reed"], "alternate": "S. Kim"}, {"name": "The Major OverAchievers", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "H. Matsuyama", "J. Spieth", "T. Fleetwood", "P. Reed"], "alternate": "J. Rose"}, {"name": "Abramson", "picks": ["J. Rahm", "B. DeChambeau", "C. Young", "M. Fitzpatrick", "J. Rose", "T. Fleetwood", "C. Smith"], "alternate": "X. Schauffele"}, {"name": "Red River Ruckus", "picks": ["J. Rahm", "M. Fitzpatrick", "X. Schauffele", "L. Aberg", "P. Reed", "C. Conners", "N. Hojgaard"], "alternate": "A. Scott"}, {"name": "Awellz", "picks": ["X. Schauffele", "J. Rahm", "M. Fitzpatrick", "L. Aberg", "J. Rose", "B. DeChambeau", "N. Hojgaard"], "alternate": "A. Scott"}, {"name": "ZR95", "picks": ["R. Mcllroy", "C. Young", "L. Aberg", "H. Matsuyama", "J. Thomas", "M. Lee", "R. MacIntyre"], "alternate": "J. Bridgeman"}, {"name": "ZR95-2", "picks": ["S. Scheffler", "J. Rahm", "X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "T. Fleetwood", "A. Bhatia"], "alternate": "J. Day"}, {"name": "TKO", "picks": ["S. Scheffler", "B. Koepka", "D. Berger", "S. Garcia", "R. MacIntyre", "S. Kim", "M. Pulcini"], "alternate": "J. Spieth"}, {"name": "Darth Faders", "picks": ["J. Rahm", "L. Aberg", "J. Spieth", "S. Straka", "M. Lee", "A. Bhatia", "P. Reed"], "alternate": "M. Homa"}, {"name": "Doozer", "picks": ["S. Scheffler", "B. DeChambeau", "X. Schauffele", "L. Aberg", "M. Fitzpatrick", "J. Rose", "A. Bhatia"], "alternate": "C. Gotterup"}, {"name": "The DBs", "picks": ["J. Rahm", "L. Aberg", "C. Young", "M. Fitzpatrick", "H. Matsuyama", "P. Reed", "J. Bridgeman"], "alternate": "R. MacIntyre"}, {"name": "Leddy", "picks": ["C. Gotterup", "M. Fitzpatrick", "H. Matsuyama", "C. Young", "A. Scott", "M. Lee", "J. Knapp"], "alternate": "X. Schauffele"}, {"name": "Nadelson", "picks": ["B. DeChambeau", "L. Aberg", "J. Rose", "H. Matsuyama", "T. Hatton", "P. Reed", "T. Fleetwood"], "alternate": "M. Fitzpatrick"}, {"name": "abell", "picks": ["B. DeChambeau", "C. Morikawa", "J. Rahm", "L. Aberg", "T. Fleetwood", "R. MacIntyre", "C. Conners"], "alternate": "J. Spieth"}, {"name": "Big Beau", "picks": ["J. Rahm", "C. Young", "S. Burns", "R. MacIntyre", "S. Kim", "M. Lee", "N. Hojgaard"], "alternate": "S. Straka"}, {"name": "Bayview 1", "picks": ["R. Mcllroy", "B. DeChambeau", "M. Fitzpatrick", "B. Koepka", "C. Young", "L. Aberg", "T. Fleetwood"], "alternate": "P. Reed"}, {"name": "Bayview 2", "picks": ["S. Scheffler", "R. Mcllroy", "B. DeChambeau", "J. Spieth", "C. Morikawa", "C. Conners", "J. Knapp"], "alternate": "P. Reed"}, {"name": "Confederated Products", "picks": ["H. Matsuyama", "J. Thomas", "J. Day", "D. Berger", "P. Reed", "M. Lee", "S. Im"], "alternate": "T. Fleetwood"}, {"name": "BerryBaum", "picks": ["X. Schauffele", "L. Aberg", "C. Young", "H. Matsuyama", "J. Rose", "A. Bhatia", "P. Reed"], "alternate": "S. Kim"}, {"name": "CamerOz Young", "picks": ["S. Scheffler", "R. Mcllroy", "B. DeChambeau", "C. Young", "T. Fleetwood", "P. Reed", "M. Lee"], "alternate": "H. English"}, {"name": "Sullivan", "picks": ["J. Rahm", "X. Schauffele", "L. Aberg", "M. Fitzpatrick", "C. Young", "J. Spieth", "V. Hovland"], "alternate": "A. Bhatia"}, {"name": "Prescription Drugs", "picks": ["J. Rahm", "L. Aberg", "M. Fitzpatrick", "C. Young", "A. Bhatia", "J. Spieth", "J. Bridgeman"], "alternate": "H. Matsuyama"}, {"name": "Loops & Locks", "picks": ["M. Fitzpatrick", "L. Aberg", "V. Hovland", "J. Spieth", "H. Matsuyama", "J. Day", "M. McNealy"], "alternate": "N. Hojgaard"}, {"name": "Pranck", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "L. Aberg", "M. Fitzpatrick", "C. Young", "T. Fleetwood"], "alternate": "J. Spieth"}, {"name": "Right Outa Highwood", "picks": ["S. Scheffler", "L. Aberg", "X. Schauffele", "J. Spieth", "P. Reed", "A. Scott", "J. Rose"], "alternate": "J. Thomas"}, {"name": "RealMoney", "picks": ["S. Scheffler", "J. Rahm", "B. DeChambeau", "X. Schauffele", "J. Spieth", "T. Hatton", "S. Kim"], "alternate": "M. Homa"}, {"name": "Bobby Saw", "picks": ["X. Schauffele", "B. DeChambeau", "L. Aberg", "C. Morikawa", "C. Young", "H. Matsuyama", "M. Fitzpatrick"], "alternate": "J. Rose"}, {"name": "ThreePuttBogeys", "picks": ["B. DeChambeau", "S. Lowry", "J. Spieth", "A. Scott", "J. Thomas", "C. Conners", "P. Reed"], "alternate": "C. Morikawa"}, {"name": "Bob M", "picks": ["X. Schauffele", "L. Aberg", "J. Rose", "T. Hatton", "B. Koepka", "C. Conners", "P. Reed"], "alternate": "S. Straka"}, {"name": "AlamanceCCboys", "picks": ["J. Rahm", "B. DeChambeau", "M. Fitzpatrick", "A. Bhatia", "P. Reed", "M. Lee", "J. Bridgeman"], "alternate": "T. Fleetwood"}, {"name": "Venez Gunn", "picks": ["X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "C. Gotterup", "L. Aberg", "S. Kim", "H. English"], "alternate": "T. Fleetwood"}, {"name": "Cart Girls Rule", "picks": ["J. Rahm", "X. Schauffele", "C. Young", "J. Rose", "R. MacIntyre", "A. Scott", "C. Conners"], "alternate": "J. Spieth"}, {"name": "Chicken Parm", "picks": ["S. Scheffler", "J. Rahm", "B. DeChambeau", "L. Aberg", "A. Bhatia", "P. Reed", "M. Lee"], "alternate": "J. Rose"}, {"name": "Walking Only Today, Tiger", "picks": ["X. Schauffele", "L. Aberg", "H. Matsuyama", "J. Day", "P. Reed", "N. Hojgaard", "J. Knapp"], "alternate": "J. Rose"}, {"name": "MBL", "picks": ["X. Schauffele", "B. DeChambeau", "J. Rahm", "C. Young", "L. Aberg", "M. Lee", "J. Rose"], "alternate": "J. Spieth"}, {"name": "Pin High", "picks": ["C. Young", "M. Fitzpatrick", "J. Rose", "J. Spieth", "J. Day", "P. Reed", "A. Scott"], "alternate": "M. McNealy"}, {"name": "Fast Freddy", "picks": ["J. Rahm", "L. Aberg", "J. Spieth", "S. Lowry", "P. Reed", "A. Bhatia", "M. Lee"], "alternate": "M. Fitzpatrick"}, {"name": "Doc", "picks": ["J. Rahm", "B. DeChambeau", "L. Aberg", "M. Fitzpatrick", "J. Spieth", "A. Bhatia", "R. MacIntyre"], "alternate": "B. Koepka"}, {"name": "GarrityGalle1", "picks": ["S. Scheffler", "L. Aberg", "A. Bhatia", "R. MacIntyre", "S. Kim", "N. Hojgaard", "C. Conners"], "alternate": "J. Spieth"}, {"name": "GarrityGalle2", "picks": ["R. Mcllroy", "B. DeChambeau", "J. Rahm", "M. Fitzpatrick", "C. Gotterup", "H. Matsuyama", "J. Knapp"], "alternate": "J. Spieth"}, {"name": "GMUN", "picks": ["S. Scheffler", "C. Morikawa", "C. Gotterup", "M. Fitzpatrick", "C. Young", "B. Koepka", "P. Reed"], "alternate": "S. Straka"}, {"name": "Ray Ray", "picks": ["R. Mcllroy", "B. DeChambeau", "L. Aberg", "H. Matsuyama", "J. Spieth", "M. Lee", "J. Bridgeman"], "alternate": "T. Fleetwood"}, {"name": "The Boss", "picks": ["X. Schauffele", "M. Fitzpatrick", "L. Aberg", "C. Young", "T. Fleetwood", "R. MacIntyre", "H. Matsuyama"], "alternate": "M. Lee"}, {"name": "The SicNesti's", "picks": ["X. Schauffele", "J. Rahm", "B. DeChambeau", "L. Aberg", "M. Fitzpatrick", "P. Reed", "C. Smith"], "alternate": "B. Koepka"}, {"name": "We're Very Smart", "picks": ["S. Scheffler", "B. DeChambeau", "L. Aberg", "C. Gotterup", "H. Matsuyama", "J. Day", "P. Reed"], "alternate": "T. McKibbon"}, {"name": "Matty Ice", "picks": ["J. Rahm", "X. Schauffele", "C. Young", "C. Gotterup", "A. Bhatia", "P. Reed", "M. McNealy"], "alternate": "M. Penge"}, {"name": "Honey Deuce", "picks": ["S. Scheffler", "J. Spieth", "J. Rose", "M. Fitzpatrick", "A. Bhatia", "S. Burns", "C. Young"], "alternate": "M. Homa"}, {"name": "Goddard", "picks": ["J. Rahm", "L. Aberg", "C. Gotterup", "B. DeChambeau", "M. Lee", "H. Matsuyama", "P. Cantlay"], "alternate": "P. Reed"}, {"name": "Kdub", "picks": ["R. Mcllroy", "B. DeChambeau", "C. Young", "S. Straka", "A. Bhatia", "B. Griffin", "D. Johnson"], "alternate": "J. Keefer"}, {"name": "Longhorns 05", "picks": ["J. Rahm", "J. Spieth", "J. Rose", "H. Matsuyama", "T. Fleetwood", "C. Conners", "R. Henley"], "alternate": "R. Mcllroy"}, {"name": "Fenigstein 1", "picks": ["X. Schauffele", "J. Rahm", "L. Aberg", "C. Young", "J. Rose", "M. Lee", "R. MacIntyre"], "alternate": "J. Bridgeman"}, {"name": "Bandito", "picks": ["J. Rahm", "M. Fitzpatrick", "C. Young", "J. Rose", "T. Fleetwood", "C. Conners", "P. Reed"], "alternate": "H. English"}, {"name": "Singer", "picks": [], "alternate": null}, {"name": "Weatherby", "picks": ["X. Schauffele", "L. Aberg", "C. Gotterup", "M. Fitzpatrick", "J. Spieth", "A. Scott", "C. Young"], "alternate": "S. Scheffler"}, {"name": "4NSICS", "picks": ["X. Schauffele", "L. Aberg", "C. Gotterup", "C. Young", "T. Fleetwood", "J. Rose", "H. Matsuyama"], "alternate": "J. Spieth"}, {"name": "OB Right", "picks": ["J. Rahm", "X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "J. Rose", "J. Spaun", "C. Conners"], "alternate": "C. Gotterup"}, {"name": "ZachMason", "picks": ["S. Scheffler", "R. Mcllroy", "J. Rahm", "B. DeChambeau", "L. Aberg", "J. Rose", "B. Koepka"], "alternate": "V. Hovland"}, {"name": "Alex M", "picks": ["S. Scheffler", "J. Rahm", "R. Mcllroy", "X. Schauffele", "M. Fitzpatrick", "L. Aberg", "P. Reed"], "alternate": "J. Spieth"}, {"name": "Gypsy", "picks": ["S. Scheffler", "J. Rahm", "L. Aberg", "B. DeChambeau", "B. Koepka", "A. Bhatia", "T. Fleetwood"], "alternate": "R. Mcllroy"}, {"name": "Throbbing3woods", "picks": ["J. Rahm", "B. DeChambeau", "C. Young", "L. Aberg", "J. Rose", "T. Fleetwood", "P. Reed"], "alternate": "M. Fitzpatrick"}, {"name": "Green Sock", "picks": ["S. Scheffler", "R. Mcllroy", "J. Rahm", "B. DeChambeau", "L. Aberg", "C. Young", "P. Reed"], "alternate": "M. Fitzpatrick"}, {"name": "Little Banana Slice", "picks": ["R. Mcllroy", "J. Rose", "J. Thomas", "A. Scott", "P. Reed", "P. Cantlay", "R. MacIntyre"], "alternate": "H. Matsuyama"}, {"name": "JunkyardDog", "picks": ["C. Morikawa", "L. Aberg", "H. Matsuyama", "V. Hovland", "P. Reed", "R. Henley", "D. Berger"], "alternate": "S. Kim"}, {"name": "Swanson/Gulock", "picks": ["J. Rahm", "B. DeChambeau", "T. Fleetwood", "J. Spieth", "H. Matsuyama", "P. Reed", "R. MacIntyre"], "alternate": "R. Mcllroy"}, {"name": "Needledicks", "picks": ["S. Scheffler", "J. Rahm", "L. Aberg", "H. Matsuyama", "R. Henley", "T. Fleetwood", "M. Lee"], "alternate": "C. Conners"}, {"name": "Steele-Hardin", "picks": ["S. Scheffler", "L. Aberg", "M. Fitzpatrick", "T. Hatton", "T. Fleetwood", "J. Rose", "H. Matsuyama"], "alternate": "R. Henley"}, {"name": "Nydons", "picks": ["S. Scheffler", "X. Schauffele", "J. Rose", "J. Spieth", "P. Reed", "R. Henley", "C. Conners"], "alternate": "S. Kim"}, {"name": "Rome", "picks": ["S. Scheffler", "J. Rahm", "M. Fitzpatrick", "B. DeChambeau", "T. Fleetwood", "P. Reed", "C. Conners"], "alternate": "J. Spieth"}, {"name": "RJA", "picks": ["B. DeChambeau", "M. Fitzpatrick", "J. Rose", "W. Clark", "S. Lowry", "M. Lee", "R. Fox"], "alternate": "C. Gotterup"}, {"name": "Fugman Squad", "picks": ["S. Scheffler", "J. Rahm", "J. Day", "M. Lee", "M. Fitzpatrick", "C. Conners", "S. Im"], "alternate": "P. Cantlay"}, {"name": "Rod Bandy", "picks": ["S. Scheffler", "J. Rahm", "R. Mcllroy", "L. Aberg", "M. Fitzpatrick", "R. MacIntyre", "P. Reed"], "alternate": "S. Kim"}, {"name": "Bloodman", "picks": ["S. Scheffler", "R. Mcllroy", "B. DeChambeau", "X. Schauffele", "L. Aberg", "B. Koepka", "J. Thomas"], "alternate": "C. Morikawa"}, {"name": "Vive Vice Baby", "picks": ["S. Scheffler", "X. Schauffele", "B. DeChambeau", "J. Rahm", "L. Aberg", "J. Rose", "P. Reed"], "alternate": "M. Homa"}, {"name": "Jake Try's Golf Matt Scott", "picks": ["H. Matsuyama", "C. Young", "P. Reed", "T. Fleetwood", "M. Lee", "A. Rai", "R. Gerard"], "alternate": "G. Woodland"}, {"name": "Jerseymike & The GM", "picks": ["J. Rahm", "B. DeChambeau", "X. Schauffele", "M. Fitzpatrick", "L. Aberg", "B. Koepka", "T. Fleetwood"], "alternate": "A. Scott"}, {"name": "Margoysky", "picks": ["X. Schauffele", "B. DeChambeau", "M. Fitzpatrick", "L. Aberg", "J. Rose", "C. Conners", "A. Scott"], "alternate": "J. Spieth"}, {"name": "Jim Davis Associates", "picks": ["X. Schauffele", "B. DeChambeau", "L. Aberg", "H. Matsuyama", "A. Bhatia", "P. Reed", "C. Conners"], "alternate": "J. Spieth"}, {"name": "VUE", "picks": ["X. Schauffele", "B. DeChambeau", "J. Rose", "T. Fleetwood", "S. Kim", "R. Henley", "J. Knapp"], "alternate": "B. Griffin"}, {"name": "John Lopes", "picks": ["S. Scheffler", "J. Rahm", "L. Aberg", "C. Young", "J. Spieth", "H. Matsuyama", "R. Henley"], "alternate": "S. Kim"}, {"name": "Lioncorns", "picks": ["J. Rahm", "X. Schauffele", "C. Gotterup", "L. Aberg", "H. Matsuyama", "A. Bhatia", "A. Scott"], "alternate": "S. Scheffler"}, {"name": "CV Makes Putts", "picks": ["R. Mcllroy", "L. Aberg", "M. Fitzpatrick", "J. Spaun", "D. Berger", "A. Bhatia", "P. Reed"], "alternate": "H. Matsuyama"}, {"name": "DEBO", "picks": ["S. Scheffler", "R. Mcllroy", "B. DeChambeau", "L. Aberg", "A. Bhatia", "P. Reed", "J. Thomas"], "alternate": "J. Rose"}, {"name": "Coogs", "picks": ["S. Scheffler", "J. Rahm", "M. Fitzpatrick", "C. Young", "T. Fleetwood", "R. Henley", "S. Im"], "alternate": "R. Mcllroy"}];
+/* ================= PICKS ================= */
+/* (embedded from your Excel — truncated here for brevity in this explanation)
+   IMPORTANT: when you paste this, KEEP the entire array exactly as provided.
+*/
+const masters2Picks = /* PASTE PICKS ARRAY HERE FROM MY PREVIOUS FILE */;
 
-// =================== ESPN HELPERS ===================
-function stripDiacritics(s) {
-  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-}
-
-function normLastName(last) {
-  let x = stripDiacritics(last).replace(/[^A-Za-z]/g,'').toLowerCase();
-  // Fix pool-wide typo
-  if (x === 'mcllroy') x = 'mcilroy';
-  if (x.startsWith('mcl')) x = x.replace(/^mcl/, 'mcil');
+/* ================= ESPN HELPERS ================= */
+function stripDiacritics(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+function normLastName(l){
+  let x=stripDiacritics(l).replace(/[^A-Za-z]/g,"").toLowerCase();
+  if(x==="mcllroy")x="mcilroy";
+  if(x.startsWith("mcl"))x=x.replace(/^mcl/,"mcil");
   return x;
 }
-
-function canonKey(first, last) {
-  if (!first || !last) return null;
-  const i = String(first).trim().charAt(0).toLowerCase();
-  const l = normLastName(last);
-  if (!i || !l) return null;
-  return i + '|' + l;
+function canonKey(f,l){return f?.[0]?.toLowerCase()+"|"+normLastName(l);}
+function canonFromPick(p){
+  const m=p.match(/^([A-Za-z])\.?\s+(.+)/);
+  return m?canonKey(m[1],m[2]):null;
 }
-
-function canonFromPick(pick) {
-  if (!pick) return null;
-  const s = String(pick).trim();
-  const m = s.match(/^\s*([A-Za-z])\s*\.?\s*(.+)\s*$/);
-  if (!m) return null;
-  return canonKey(m[1], m[2]);
+function fmt(n){if(n==null)return"—";if(n===0)return"E";return n>0?`+${n}`:`${n}`;}
+async function fetchEventId(){
+  const h=await fetch("https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=golf&league=pga");
+  const j=await h.json();
+  return j?.sports?.[0]?.leagues?.[0]?.events?.[0]?.id;
 }
-
-function normalizeToPar(val) {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'object') {
-    return normalizeToPar(val.toPar ?? val.displayValue ?? val.value);
-  }
-  const s = String(val).trim();
-  if (!s) return null;
-  const u = s.toUpperCase();
-  if (u === 'E' || u === 'EVEN') return 0;
-  const n = Number(s.replace('+',''));
-  return Number.isFinite(n) ? n : null;
+async function fetchLeaderboard(id){
+  const r=await fetch(`https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${id}`);
+  if(!r.ok)throw new Error("ESPN returned "+r.status);
+  return r.json();
 }
-
-function extractName(obj) {
-  if (!obj) return null;
-  if (obj.firstName && obj.lastName) return String(obj.firstName).trim() + ' ' + String(obj.lastName).trim();
-  if (obj.displayName) return String(obj.displayName).trim();
-  if (obj.athlete && obj.athlete.displayName) return String(obj.athlete.displayName).trim();
-  if (Array.isArray(obj.athletes) && obj.athletes[0] && obj.athletes[0].displayName) return String(obj.athletes[0].displayName).trim();
-  if (obj.player && obj.player.displayName) return String(obj.player.displayName).trim();
-  return null;
-}
-
-function firstLastFromDisplayName(dn) {
-  const parts = String(dn).trim().split(/\s+/);
-  if (parts.length < 2) return {first:null,last:null};
-  return { first: parts[0], last: parts.slice(1).join(' ') };
-}
-
-function extractToPar(obj) {
-  if (!obj) return null;
-  return normalizeToPar(
-    obj.toPar ??
-    obj.displayScore ??
-    obj.score ??
-    obj.score?.toPar ??
-    obj.score?.displayValue ??
-    obj.scoring?.toPar ??
-    obj.scoring?.displayValue ??
-    null
-  );
-}
-
-async function fetchLeaderboard(eventId) {
-  const url = `https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${eventId}`;
-  const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return await r.json();
-}
-
-async function fetchHeaderEventId() {
-  const url = 'https://site.web.api.espn.com/apis/v2/scoreboard/header?sport=golf&league=pga&region=us&lang=en&contentorigin=espn';
-  const r = await fetch(url, { cache: 'no-store' });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  const j = await r.json();
-  const ev = j?.sports?.[0]?.leagues?.[0]?.events?.[0];
-  return ev?.id || null;
-}
-
-function collectGolfers(root, maxNodes=60000) {
-  const stack=[root];
-  const out=[];
-  let seen=0;
-  while(stack.length && seen < maxNodes) {
-    const cur = stack.pop();
-    seen++;
-    if (!cur) continue;
-    if (Array.isArray(cur)) {
-      for (const v of cur) stack.push(v);
-      continue;
-    }
-    if (typeof cur === 'object') {
-      const dn = extractName(cur);
-      const tp = extractToPar(cur);
-      if (dn) out.push({ dn, tp });
-      for (const k of Object.keys(cur)) {
-        const v = cur[k];
-        if (v && typeof v === 'object') stack.push(v);
+function collectScores(d){
+  const map=new Map();
+  const walk=o=>{
+    if(!o)return;
+    if(Array.isArray(o))return o.forEach(walk);
+    if(typeof o==="object"){
+      const n=o.displayName||o.athlete?.displayName;
+      const tp=o.toPar??o.score?.toPar;
+      if(n){
+        const [f,...r]=n.split(" ");
+        map.set(canonKey(f,r.join(" ")), typeof tp==="number"?tp:null);
       }
+      Object.values(o).forEach(walk);
     }
-  }
-  return out;
-}
-
-function buildScoreMap(data) {
-  const golfers = collectGolfers(data);
-  const map = new Map();
-  for (const g of golfers) {
-    const {first,last} = firstLastFromDisplayName(g.dn);
-    const key = canonKey(first,last);
-    if (!key) continue;
-    const existing = map.get(key);
-    if (existing === undefined || existing === null) {
-      map.set(key, g.tp);
-    } else {
-      if (typeof existing !== 'number' && typeof g.tp === 'number') map.set(key, g.tp);
-    }
-  }
+  };
+  walk(d);
   return map;
 }
 
-function fmt(n) {
-  if (n === null || n === undefined) return '—';
-  if (n === 0) return 'E';
-  return n > 0 ? '+' + n : String(n);
-}
-
-function scoreEntry(entry, scoreMap) {
-  const picks = (entry.picks || []).map(p => {
-    const key = canonFromPick(p);
-    const score = key ? scoreMap.get(key) : null;
-    return { pick: p, score: (score === undefined ? null : score) };
+/* ================= SCORING ================= */
+function scoreEntry(e,map){
+  const picks=e.picks.map(p=>{
+    const k=canonFromPick(p);
+    const s=k?map.get(k):null;
+    return {p,s:(s??0)};
   });
-
-  // best 5 of 7; pending treated as 0 for ranking until scores arrive
-  const order = picks.map((x,idx)=>({idx, val: (typeof x.score==='number'?x.score:0)})).sort((a,b)=>a.val-b.val);
-  const countedIdx = new Set(order.slice(0,5).map(o=>o.idx));
-  const total = order.slice(0,5).reduce((s,o)=>s+o.val,0);
-
-  return { total, picks, countedIdx };
+  const ranked=[...picks].sort((a,b)=>a.s-b.s);
+  const counted=new Set(ranked.slice(0,5).map(x=>x.p));
+  const total=ranked.slice(0,5).reduce((t,x)=>t+x.s,0);
+  return {total,picks,counted};
 }
 
-function renderGolfers(detail) {
-  return '<div class="golfers">' + detail.picks.map((p,i)=>{
-    const isCounted = detail.countedIdx.has(i);
-    const hasNumber = typeof p.score === 'number';
-    const cls = isCounted ? 'counted' : (hasNumber ? 'dropped' : 'pending');
-    return `<span class="${cls}">${p.pick} (${fmt(p.score)})</span>`;
-  }).join(' ') + '</div>';
-}
-
-// =================== UI ===================
-const elRows = document.getElementById('rows');
-const elErr = document.getElementById('error');
-const elStatus = document.getElementById('status');
-const elUpdated = document.getElementById('updated');
-const elCount = document.getElementById('count');
-const elQ = document.getElementById('q');
-const btnRefresh = document.getElementById('refresh');
-
-let latest = [];
-
-function render() {
-  const q = (elQ.value || '').toLowerCase();
-  const shown = q ? latest.filter(x => x.name.toLowerCase().includes(q)) : latest;
-  elCount.textContent = `${shown.length} of ${latest.length} entries`;
-  elRows.innerHTML = '';
-  shown.forEach((r, idx) => {
-    elRows.insertAdjacentHTML('beforeend', `
-      <tr>
-        <td class="right">${idx+1}</td>
-        <td>${r.name}</td>
-        <td class="right">${r.total}</td>
-        <td>${renderGolfers(r.detail)}</td>
-      </tr>
-    `);
-  });
-}
-
-async function refresh() {
-  elErr.textContent = '';
-  elStatus.textContent = 'Fetching ESPN…';
-  btnRefresh.disabled = true;
-
-  try {
-    let data;
-    try {
-      data = await fetchLeaderboard(EVENT_ID);
-    } catch (e) {
-      const newId = await fetchHeaderEventId();
-      if (!newId) throw e;
-      EVENT_ID = newId;
-      data = await fetchLeaderboard(EVENT_ID);
-    }
-
-    const scoreMap = buildScoreMap(data);
-
-    latest = masters2Picks.map(e => {
-      const detail = scoreEntry(e, scoreMap);
-      return { name: e.name, total: detail.total, detail };
-    }).sort((a,b)=>a.total-b.total);
-
-    elStatus.textContent = 'Live';
-    elUpdated.textContent = new Date().toLocaleString();
-    render();
-  } catch (err) {
-    elStatus.textContent = 'No data';
-    elErr.textContent =
-      'Could not load ESPN data.\n' +
-      String(err) +
-      '\n\nIf you opened this file directly (file://), some browsers block cross-site requests.\nTry running a local server: python -m http.server 8000, then open http://localhost:8000/index.html';
-  } finally {
-    btnRefresh.disabled = false;
-  }
-}
-
-elQ.addEventListener('input', render);
-btnRefresh.addEventListener('click', refresh);
-
-refresh();
-setInterval(refresh, REFRESH_MS);
-</script>
-
-</body>
-</html>
